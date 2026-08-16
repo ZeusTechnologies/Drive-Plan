@@ -69,8 +69,8 @@ aside {
   padding: 0 10px;
 }
 .brand img {
-  width: 34px;
-  height: 34px;
+  width: 54px;
+  height: 54px;
   object-fit: cover;
   border-radius: 10px;
 }
@@ -1134,8 +1134,8 @@ dialog .entry-panel > p {
     padding: 0;
   }
   .mobile-top .brand img {
-    width: 30px;
-    height: 30px;
+    width: 42px;
+    height: 42px;
   }
   .mobile-top button {
     color: #fff;
