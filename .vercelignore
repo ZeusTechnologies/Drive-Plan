@@ -1,0 +1,7 @@
+.git
+.playwright-cli
+output
+node_modules
+*.log
+.env*
+!.env.example
