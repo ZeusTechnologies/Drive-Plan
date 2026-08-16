@@ -42,6 +42,7 @@ function InstallAppButton({ pwa }: { pwa: PwaController }) {
   if (pwa.installed) return null
   const activate = async () => {
     if (pwa.canInstall) {
+      setShowHelp(false)
       await pwa.install()
       return
     }
@@ -51,7 +52,7 @@ function InstallAppButton({ pwa }: { pwa: PwaController }) {
     <button className="install-app" onClick={activate} aria-expanded={showHelp}>
       <Download size={19} /><span>Install app</span>
     </button>
-    {showHelp && <p className="install-help">{pwa.showIosHint ? 'In Safari, tap Share, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.'}</p>}
+    {showHelp && <p className="install-help">{pwa.showIosHint ? 'On iPhone or iPad, Safari requires Share → Add to Home Screen.' : 'This browser has not enabled its install prompt yet. Open its menu and choose Install app or Add to Home screen.'}</p>}
   </div>
 }
 
