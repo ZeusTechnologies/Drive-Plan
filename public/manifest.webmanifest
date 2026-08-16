@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "DrivePlan — Smart Finances for Drivers",
+  "short_name": "DrivePlan",
+  "description": "Enter earnings once and understand where every shilling should go.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f3f4f1",
+  "theme_color": "#111311",
+  "categories": ["finance", "business", "productivity"],
+  "lang": "en-UG",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/driveplan.png",
+      "sizes": "1280x1280",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add earnings",
+      "short_name": "Add earning",
+      "description": "Record and allocate a new trip earning",
+      "url": "/?action=add",
+      "icons": [{ "src": "/driveplan.png", "sizes": "1280x1280", "type": "image/png" }]
+    }
+  ]
+}

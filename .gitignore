@@ -1,0 +1,15 @@
+node_modules/
+node_modules_predeploy/
+dist/
+output/
+playwright-report/
+test-results/
+.playwright-cli/
+.vercel/
+
+.env
+.env.*
+!.env.example
+
+*.log
+*.tsbuildinfo
