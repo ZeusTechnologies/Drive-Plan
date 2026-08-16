@@ -1,11 +1,21 @@
 import type { AllocationRules, Platform, Totals, Transaction } from '../types'
 
 export const DEFAULT_RULES: AllocationRules = {
-  fuel: 30,
+  fuel: 25,
   commission: 20,
   maintenance: 10,
-  savings: 40,
-  platformCommissions: { private: 0 },
+  savings: 45,
+  platformCommissions: {
+    uber: 26.53,
+    bolt: 16,
+    safeboda: 18,
+    faras: 10,
+    private: 0,
+    lolo: 7.41,
+    littlecab: 15,
+    ridenow: 15,
+    union: 15,
+  },
 }
 
 const portion = (amount: number, percentage: number) => Math.round((amount * percentage) / 100)

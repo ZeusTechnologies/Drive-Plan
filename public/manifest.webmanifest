@@ -15,8 +15,8 @@
   "dir": "ltr",
   "icons": [
     {
-      "src": "/driveplan.png",
-      "sizes": "1280x1280",
+      "src": "/dp-black.png",
+      "sizes": "1028x1022",
       "type": "image/png",
       "purpose": "any maskable"
     }
@@ -27,7 +27,7 @@
       "short_name": "Add earning",
       "description": "Record and allocate a new trip earning",
       "url": "/?action=add",
-      "icons": [{ "src": "/driveplan.png", "sizes": "1280x1280", "type": "image/png" }]
+      "icons": [{ "src": "/dp-black.png", "sizes": "1028x1022", "type": "image/png" }]
     }
   ]
 }

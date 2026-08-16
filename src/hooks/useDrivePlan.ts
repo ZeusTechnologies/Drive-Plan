@@ -3,7 +3,7 @@ import { calculateAllocation, DEFAULT_RULES } from '../lib/finance'
 import type { AllocationRules, Platform, Transaction } from '../types'
 
 const TRANSACTIONS_KEY = 'driveplan.transactions.v1'
-const RULES_KEY = 'driveplan.rules.v1'
+const RULES_KEY = 'driveplan.rules.v2'
 const PLATFORM_KEY = 'driveplan.last-platform'
 
 function read<T>(key: string, fallback: T): T {

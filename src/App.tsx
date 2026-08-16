@@ -6,7 +6,18 @@ import { usePwa } from './hooks/usePwa'
 import { platforms, type AllocationRules, type Platform, type Totals, type Transaction } from './types'
 
 type View = 'home' | 'history' | 'analytics' | 'settings'
-const names: Record<Platform, string> = { uber: 'Uber', bolt: 'Bolt', safeboda: 'SafeBoda', faras: 'Faras', private: 'Karibu Rides & Tours', other: 'Other' }
+const names: Record<Platform, string> = {
+  uber: 'Uber',
+  bolt: 'Bolt',
+  safeboda: 'Safecar / Boda',
+  faras: 'Faras',
+  private: 'Karibu',
+  lolo: 'Lolo',
+  littlecab: 'Little Cab',
+  ridenow: 'Ride Now',
+  union: 'Union',
+  other: 'Other',
+}
 const nav = [
   { id: 'home' as const, label: 'Overview', icon: Home },
   { id: 'history' as const, label: 'Transactions', icon: History },
@@ -15,7 +26,7 @@ const nav = [
 ]
 
 function Brand() {
-  return <div className="brand"><img src="/driveplan.png" alt="" /><span>DrivePlan</span></div>
+  return <div className="brand"><img src="/dp-logo.png" alt="" /><span>DrivePlan</span></div>
 }
 
 function PwaStatus() {
@@ -146,7 +157,7 @@ function HomeView({ transactions, rules, lastPlatform, add, onEdit, onDelete, op
       <section className="today-panel">
         <div className="section-head"><div><span className="eyebrow">Today’s earnings</span><h2>{formatUGX(today.gross)}</h2><p>{today.trips} {today.trips === 1 ? 'trip' : 'trips'} logged today</p></div><div className="trend-badge"><TrendingUp size={15} /> Live</div></div>
         <div className="metrics-grid">
-          <Metric label="Fuel" value={formatUGX(today.fuel)} meta="30% reserve" icon={Fuel} />
+          <Metric label="Fuel" value={formatUGX(today.fuel)} meta={`${rules.fuel}% reserve`} icon={Fuel} />
           <Metric label="Commission" value={formatUGX(today.commission)} meta="Platform fees" icon={CircleDollarSign} />
           <Metric label="Maintenance" value={formatUGX(today.maintenance)} meta="Vehicle reserve" icon={ShieldCheck} />
           <Metric label="Savings" value={formatUGX(today.savings)} meta="Retained income" accent icon={WalletCards} />
@@ -182,7 +193,7 @@ function AnalyticsView({ transactions }: { transactions: Transaction[] }) {
   return <><header className="page-heading analytics-head"><div><span className="eyebrow">Performance</span><h1>Your money, in focus.</h1></div><div className="period-tabs">{(['today','week','month','all'] as Period[]).map((p) => <button className={period === p ? 'active' : ''} onClick={() => setPeriod(p)} key={p}>{p === 'all' ? 'All time' : p[0].toUpperCase() + p.slice(1)}</button>)}</div></header>
     <div className="hero-kpis"><div><span>Total earned</span><strong>{formatUGX(totals.gross)}</strong><small>{totals.trips} trips · {formatUGX(totals.trips ? totals.gross / totals.trips : 0)} average</small></div><div className="saved-kpi"><span>Total saved</span><strong>{formatUGX(totals.savings)}</strong><small><ArrowUpRight size={14} /> {totals.gross ? Math.round(totals.savings / totals.gross * 100) : 0}% savings rate</small></div></div>
     <div className="analytics-grid"><section className="chart-section wide"><div className="section-title"><div><span>Earnings trend</span><strong>This week</strong></div></div><Trend items={items} /></section><section className="chart-section"><div className="section-title"><div><span>Source performance</span><strong>Platform earnings</strong></div></div><div className="bar-list">{byPlatform.map((row) => <div className="bar-row" key={row.platform}><span>{names[row.platform]}</span><div><i style={{ width: `${row.gross / max * 100}%` }} /></div><strong>{formatCompact(row.gross)}</strong></div>)}</div></section></div>
-    <section className="source-metrics"><div><span>Platform earnings</span><strong>{formatUGX(totals.gross - privateTotals.gross)}</strong></div><div><span>Karibu Rides & Tours earnings</span><strong>{formatUGX(privateTotals.gross)}</strong></div><div><span>Karibu Rides & Tours share</span><strong>{totals.gross ? Math.round(privateTotals.gross / totals.gross * 100) : 0}%</strong></div><div className="green"><span>Karibu Rides & Tours retained</span><strong>{formatUGX(privateTotals.savings)}</strong></div></section>
+    <section className="source-metrics"><div><span>Platform earnings</span><strong>{formatUGX(totals.gross - privateTotals.gross)}</strong></div><div><span>Karibu earnings</span><strong>{formatUGX(privateTotals.gross)}</strong></div><div><span>Karibu share</span><strong>{totals.gross ? Math.round(privateTotals.gross / totals.gross * 100) : 0}%</strong></div><div className="green"><span>Karibu retained</span><strong>{formatUGX(privateTotals.savings)}</strong></div></section>
     <TotalStrip title={`${period.toUpperCase()} TOTAL`} totals={totals} /></>
 }
 
@@ -194,7 +205,7 @@ function SettingsView({ rules, onSave }: { rules: AllocationRules, onSave: (rule
   const save = () => { if (total !== 100) return setMessage('Allocation rules must total exactly 100%.'); onSave(draft); setMessage('Settings saved. New trips will use these rates.') }
   return <><header className="page-heading"><div><span className="eyebrow">Preferences</span><h1>Allocation rules.</h1></div></header>
     <div className="settings-layout"><section className="settings-section"><div className="settings-copy"><h2>Global allocation</h2><p>These rates apply to new trips. Existing transactions keep their original allocation.</p></div><div className="rule-fields">{(['fuel','commission','maintenance','savings'] as const).map((key) => <label key={key}><span>{key === 'maintenance' ? 'Maintenance reserve' : key[0].toUpperCase() + key.slice(1)}</span><div><input type="number" min="0" max="100" value={draft[key]} onChange={(e) => change(key, e.target.value)} /><b>%</b></div></label>)}<div className={`allocation-total ${total === 100 ? 'valid' : 'invalid'}`}><span>Total allocation</span><strong>{total}%</strong></div></div></section>
-      <section className="settings-section"><div className="settings-copy"><h2>Platform commission</h2><p>Set a custom commission. Clear the field to use the global rate.</p></div><div className="rule-fields platform-rules">{platforms.map((platform) => <label key={platform}><span>{names[platform]}<small>{draft.platformCommissions[platform] == null ? 'Uses global' : 'Custom rate'}</small></span><div><input type="number" min="0" max="60" placeholder={String(draft.commission)} value={draft.platformCommissions[platform] ?? ''} onChange={(e) => { const copy = { ...draft.platformCommissions }; if (e.target.value === '') delete copy[platform]; else copy[platform] = Number(e.target.value); setDraft({ ...draft, platformCommissions: copy }) }} /><b>%</b></div></label>)}</div></section>
+      <section className="settings-section"><div className="settings-copy"><h2>Platform commission</h2><p>Set a custom commission. Savings automatically receives or covers the difference.</p></div><div className="rule-fields platform-rules">{platforms.map((platform) => <label key={platform}><span>{names[platform]}<small>{draft.platformCommissions[platform] == null ? 'Uses global' : 'Custom rate'}</small></span><div><input type="number" min="0" max="60" step="0.01" placeholder={String(draft.commission)} value={draft.platformCommissions[platform] ?? ''} onChange={(e) => { const copy = { ...draft.platformCommissions }; if (e.target.value === '') delete copy[platform]; else copy[platform] = Number(e.target.value); setDraft({ ...draft, platformCommissions: copy }) }} /><b>%</b></div></label>)}</div></section>
       {message && <p className={total === 100 ? 'settings-message success-text' : 'settings-message form-error'}>{message}</p>}<button className="primary-action settings-save" onClick={save} disabled={total !== 100}>Save allocation rules</button></div></>
 }
 

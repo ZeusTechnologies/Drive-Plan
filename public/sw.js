@@ -1,5 +1,5 @@
-const CACHE_VERSION = 'driveplan-v1'
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/driveplan.png']
+const CACHE_VERSION = 'driveplan-v2'
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/dp-black.png', '/dp-logo.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
