@@ -108,6 +108,27 @@ aside nav button.active {
 aside nav button.active svg {
   color: #46cc66;
 }
+.install-app-wrap {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #292d29;
+}
+aside nav button.install-app {
+  width: 100%;
+  color: #0f1711;
+  background: #48d36a;
+  font-weight: 750;
+}
+aside nav button.install-app:hover {
+  color: #0f1711;
+  background: #5ade79;
+}
+.install-help {
+  margin: 10px 12px 0;
+  color: #a6aca6;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .sidebar-foot {
   margin-top: auto;
   border-top: 1px solid #292d29;

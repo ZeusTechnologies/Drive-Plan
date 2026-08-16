@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, BarChart3, CarFront, Check, ChevronRight, CircleDollarSign, Download, Fuel, History, Home, Menu, Pencil, Plus, Search, Settings, Share2, ShieldCheck, Sparkles, Trash2, TrendingUp, WalletCards, WifiOff, X } from 'lucide-react'
+import { ArrowUpRight, BarChart3, CarFront, Check, ChevronRight, CircleDollarSign, Download, Fuel, History, Home, Menu, Pencil, Plus, Search, Settings, ShieldCheck, Sparkles, Trash2, TrendingUp, WalletCards, WifiOff, X } from 'lucide-react'
 import { calculateAllocation, formatCompact, formatUGX, inPeriod, localDateKey, startOfWeek, totalTransactions, type Period } from './lib/finance'
 import { useDrivePlan } from './hooks/useDrivePlan'
 import { usePwa } from './hooks/usePwa'
@@ -29,12 +29,30 @@ function Brand() {
   return <div className="brand"><img src="/dp-logo.png" alt="" /><span>DrivePlan</span></div>
 }
 
-function PwaStatus() {
-  const { offline, installed, canInstall, showIosHint, install } = usePwa()
+type PwaController = ReturnType<typeof usePwa>
+
+function PwaStatus({ pwa }: { pwa: PwaController }) {
+  const { offline } = pwa
   if (offline) return <div className="pwa-status offline" role="status"><WifiOff size={16} /><span><strong>Offline</strong>Your data still saves on this device.</span></div>
-  if (canInstall && !installed) return <button className="pwa-status install" onClick={install}><Download size={16} /><span><strong>Install DrivePlan</strong>Use it like a native app.</span></button>
-  if (showIosHint) return <div className="pwa-status ios-hint"><Share2 size={16} /><span><strong>Install on iPhone</strong>Share → Add to Home Screen</span></div>
   return null
+}
+
+function InstallAppButton({ pwa }: { pwa: PwaController }) {
+  const [showHelp, setShowHelp] = useState(false)
+  if (pwa.installed) return null
+  const activate = async () => {
+    if (pwa.canInstall) {
+      await pwa.install()
+      return
+    }
+    setShowHelp((visible) => !visible)
+  }
+  return <div className="install-app-wrap">
+    <button className="install-app" onClick={activate} aria-expanded={showHelp}>
+      <Download size={19} /><span>Install app</span>
+    </button>
+    {showHelp && <p className="install-help">{pwa.showIosHint ? 'In Safari, tap Share, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.'}</p>}
+  </div>
 }
 
 function PlatformSelector({ value, onChange }: { value: Platform, onChange: (value: Platform) => void }) {
@@ -224,15 +242,16 @@ function EditForm({ item, onSave }: { item: Transaction, onSave: (amount: number
 
 export default function App() {
   const { transactions, rules, setRules, lastPlatform, add, update, remove } = useDrivePlan()
+  const pwa = usePwa()
   const [view, setView] = useState<View>('home'); const [addOpen, setAddOpen] = useState(false); const [editItem, setEditItem] = useState<Transaction | null>(null); const [deleteItem, setDeleteItem] = useState<Transaction | null>(null); const [menu, setMenu] = useState(false)
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('action') === 'add') setAddOpen(true)
   }, [])
   const navigate = (next: View) => { setView(next); setMenu(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   return <div className="app-shell">
-    <aside className={menu ? 'open' : ''}><Brand /><nav>{nav.map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={19} />{label}</button>)}</nav><div className="sidebar-foot"><div className="status-dot" /><div><strong>Local & private</strong><span>Saved on this device</span></div></div></aside>
+    <aside className={menu ? 'open' : ''}><Brand /><nav>{nav.map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={19} />{label}</button>)}<InstallAppButton pwa={pwa} /></nav><div className="sidebar-foot"><div className="status-dot" /><div><strong>Local & private</strong><span>Saved on this device</span></div></div></aside>
     <div className="mobile-top"><Brand /><button aria-label="Open menu" onClick={() => setMenu(!menu)}><Menu size={22} /></button></div>{menu && <button className="scrim" aria-label="Close menu" onClick={() => setMenu(false)} />}
-    <PwaStatus />
+    <PwaStatus pwa={pwa} />
     <main>{view === 'home' && <HomeView transactions={transactions} rules={rules} lastPlatform={lastPlatform} add={add} onEdit={setEditItem} onDelete={setDeleteItem} openAdd={() => setAddOpen(true)} goHistory={() => navigate('history')} />}{view === 'history' && <HistoryView transactions={transactions} onEdit={setEditItem} onDelete={setDeleteItem} />}{view === 'analytics' && <AnalyticsView transactions={transactions} />}{view === 'settings' && <SettingsView rules={rules} onSave={setRules} />}</main>
     <nav className="bottom-nav">{nav.slice(0, 2).map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={20} /><span>{label === 'Transactions' ? 'History' : label}</span></button>)}<button className="fab" aria-label="Add earnings" onClick={() => setAddOpen(true)}><Plus size={25} /></button>{nav.slice(2).map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={20} /><span>{label}</span></button>)}</nav>
     <Dialog open={addOpen} title="Add earnings" onClose={() => setAddOpen(false)}><EntryPanel rules={rules} initialPlatform={lastPlatform} onSave={add} onDone={() => setAddOpen(false)} /></Dialog>
