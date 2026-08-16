@@ -6,7 +6,7 @@ import { usePwa } from './hooks/usePwa'
 import { platforms, type AllocationRules, type Platform, type Totals, type Transaction } from './types'
 
 type View = 'home' | 'history' | 'analytics' | 'settings'
-const names: Record<Platform, string> = { uber: 'Uber', bolt: 'Bolt', safeboda: 'SafeBoda', faras: 'Faras', private: 'Private', other: 'Other' }
+const names: Record<Platform, string> = { uber: 'Uber', bolt: 'Bolt', safeboda: 'SafeBoda', faras: 'Faras', private: 'Karibu Rides & Tours', other: 'Other' }
 const nav = [
   { id: 'home' as const, label: 'Overview', icon: Home },
   { id: 'history' as const, label: 'Transactions', icon: History },
@@ -182,7 +182,7 @@ function AnalyticsView({ transactions }: { transactions: Transaction[] }) {
   return <><header className="page-heading analytics-head"><div><span className="eyebrow">Performance</span><h1>Your money, in focus.</h1></div><div className="period-tabs">{(['today','week','month','all'] as Period[]).map((p) => <button className={period === p ? 'active' : ''} onClick={() => setPeriod(p)} key={p}>{p === 'all' ? 'All time' : p[0].toUpperCase() + p.slice(1)}</button>)}</div></header>
     <div className="hero-kpis"><div><span>Total earned</span><strong>{formatUGX(totals.gross)}</strong><small>{totals.trips} trips · {formatUGX(totals.trips ? totals.gross / totals.trips : 0)} average</small></div><div className="saved-kpi"><span>Total saved</span><strong>{formatUGX(totals.savings)}</strong><small><ArrowUpRight size={14} /> {totals.gross ? Math.round(totals.savings / totals.gross * 100) : 0}% savings rate</small></div></div>
     <div className="analytics-grid"><section className="chart-section wide"><div className="section-title"><div><span>Earnings trend</span><strong>This week</strong></div></div><Trend items={items} /></section><section className="chart-section"><div className="section-title"><div><span>Source performance</span><strong>Platform earnings</strong></div></div><div className="bar-list">{byPlatform.map((row) => <div className="bar-row" key={row.platform}><span>{names[row.platform]}</span><div><i style={{ width: `${row.gross / max * 100}%` }} /></div><strong>{formatCompact(row.gross)}</strong></div>)}</div></section></div>
-    <section className="source-metrics"><div><span>Platform earnings</span><strong>{formatUGX(totals.gross - privateTotals.gross)}</strong></div><div><span>Private earnings</span><strong>{formatUGX(privateTotals.gross)}</strong></div><div><span>Private share</span><strong>{totals.gross ? Math.round(privateTotals.gross / totals.gross * 100) : 0}%</strong></div><div className="green"><span>Private retained</span><strong>{formatUGX(privateTotals.savings)}</strong></div></section>
+    <section className="source-metrics"><div><span>Platform earnings</span><strong>{formatUGX(totals.gross - privateTotals.gross)}</strong></div><div><span>Karibu Rides & Tours earnings</span><strong>{formatUGX(privateTotals.gross)}</strong></div><div><span>Karibu Rides & Tours share</span><strong>{totals.gross ? Math.round(privateTotals.gross / totals.gross * 100) : 0}%</strong></div><div className="green"><span>Karibu Rides & Tours retained</span><strong>{formatUGX(privateTotals.savings)}</strong></div></section>
     <TotalStrip title={`${period.toUpperCase()} TOTAL`} totals={totals} /></>
 }
 
