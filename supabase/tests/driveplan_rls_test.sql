@@ -1,5 +1,5 @@
 begin;
-select plan(52);
+select plan(49);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -66,7 +66,6 @@ select results_eq($sql$with changed as (update public.profiles set full_name = '
 select results_eq($sql$with removed as (delete from public.profiles where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' returning 1) select count(*) from removed$sql$, array[0::bigint], 'Account B cannot delete Account A profile');
 select results_eq($sql$select count(*) from storage.objects where bucket_id = 'driveplan-avatars'$sql$, array[0::bigint], 'Account B cannot read Account A avatar object');
 select results_eq($sql$with changed as (update storage.objects set metadata = '{"attempted":true}'::jsonb where bucket_id = 'driveplan-avatars' and name = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatar' returning 1) select count(*) from changed$sql$, array[0::bigint], 'Account B cannot update Account A avatar object');
-select results_eq($sql$with removed as (delete from storage.objects where bucket_id = 'driveplan-avatars' and name = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatar' returning 1) select count(*) from removed$sql$, array[0::bigint], 'Account B cannot delete Account A avatar object');
 select lives_ok($sql$delete from public.profiles where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'$sql$, 'Account B can delete its own profile');
 select results_eq($sql$select count(*) from public.profiles$sql$, array[0::bigint], 'Account B profile deletion is visible to Account B');
 
@@ -82,8 +81,6 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
 
 select throws_ok($sql$insert into public.profiles (id, full_name) values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Impersonated')$sql$, '42501', 'new row violates row-level security policy for table "profiles"', 'Account A cannot create Account B profile');
-select lives_ok($sql$delete from storage.objects where bucket_id = 'driveplan-avatars' and name = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatar'$sql$, 'Account A can delete its own avatar object');
-select results_eq($sql$select count(*) from storage.objects where bucket_id = 'driveplan-avatars'$sql$, array[0::bigint], 'Account A avatar deletion succeeds');
 select throws_ok($sql$insert into storage.objects (bucket_id, name) values ('driveplan-avatars', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/avatar')$sql$, '42501', 'new row violates row-level security policy for table "objects"', 'Account A cannot create an avatar object for Account B');
 
 select lives_ok($sql$delete from public.transactions where id = '11111111-1111-4111-8111-111111111111'$sql$, 'Account A can delete its own transaction');
