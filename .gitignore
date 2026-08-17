@@ -13,3 +13,7 @@ test-results/
 
 *.log
 *.tsbuildinfo
+
+.vercel
+.env*
+!.env.example

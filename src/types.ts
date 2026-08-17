@@ -1,4 +1,4 @@
-export const platforms = ['uber', 'bolt', 'safeboda', 'faras', 'private', 'other'] as const
+export const platforms = ['uber', 'bolt', 'safeboda', 'faras', 'private', 'lolo', 'littlecab', 'ridenow', 'union', 'other'] as const
 export type Platform = (typeof platforms)[number]
 
 export interface AllocationRules {
