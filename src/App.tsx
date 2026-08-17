@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, BarChart3, CarFront, Check, ChevronRight, CircleDollarSign, Download, Fuel, History, Home, Menu, Pencil, Plus, Search, Settings, ShieldCheck, Sparkles, Trash2, TrendingUp, WalletCards, WifiOff, X } from 'lucide-react'
+import { ArrowUpRight, BadgeCheck, BarChart3, Camera, CarFront, Check, ChevronRight, CircleDollarSign, Crown, Download, Fuel, History, Home, LogOut, Menu, Pencil, Plus, Search, Settings, ShieldCheck, Sparkles, Trash2, TrendingUp, UserRound, WalletCards, WifiOff, X } from 'lucide-react'
+import { AuthLoading, AuthScreen } from './auth/AuthScreen'
+import { useAuth } from './auth/useAuth'
 import { calculateAllocation, formatCompact, formatUGX, inPeriod, localDateKey, startOfWeek, totalTransactions, type Period } from './lib/finance'
+import { profileAvatarUrl } from './data/drivePlanRepository'
 import { useDrivePlan } from './hooks/useDrivePlan'
 import { usePwa } from './hooks/usePwa'
 import { platforms, type AllocationRules, type Platform, type Totals, type Transaction } from './types'
+import type { ProfileRow } from './types/database'
 
 type View = 'home' | 'history' | 'analytics' | 'settings'
 const names: Record<Platform, string> = {
@@ -33,7 +37,7 @@ type PwaController = ReturnType<typeof usePwa>
 
 function PwaStatus({ pwa }: { pwa: PwaController }) {
   const { offline } = pwa
-  if (offline) return <div className="pwa-status offline" role="status"><WifiOff size={16} /><span><strong>Offline</strong>Your data still saves on this device.</span></div>
+  if (offline) return <div className="pwa-status offline" role="status"><WifiOff size={16} /><span><strong>Offline</strong>A connection is required to save account data.</span></div>
   return null
 }
 
@@ -79,20 +83,24 @@ function AllocationRows({ amount, rules, platform }: { amount: number, rules: Al
   </div>
 }
 
-function EntryPanel({ rules, initialPlatform, onSave, onDone }: { rules: AllocationRules, initialPlatform: Platform, onSave: (amount: number, platform: Platform) => void, onDone?: () => void }) {
+function EntryPanel({ rules, initialPlatform, onSave, onDone }: { rules: AllocationRules, initialPlatform: Platform, onSave: (amount: number, platform: Platform) => Promise<void>, onDone?: () => void }) {
   const [raw, setRaw] = useState('')
   const [platform, setPlatform] = useState(initialPlatform)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const amount = Number(raw.replace(/\D/g, ''))
-  const allocate = () => {
+  const allocate = async () => {
+    if (saving) return
     try {
       calculateAllocation(amount, rules, platform)
-      onSave(amount, platform)
+      setSaving(true)
+      await onSave(amount, platform)
       setSaved(true); setRaw(''); setError('')
       window.setTimeout(() => { setSaved(false); onDone?.() }, 700)
-    } catch (err) { setError(err instanceof Error ? err.message : 'Check the amount.') }
+    } catch (err) { setError(err instanceof Error ? err.message : 'The transaction was not saved.') }
+    finally { setSaving(false) }
   }
   return <section className="entry-panel">
     <div className="eyebrow"><Sparkles size={14} /> Quick allocation</div>
@@ -100,14 +108,14 @@ function EntryPanel({ rules, initialPlatform, onSave, onDone }: { rules: Allocat
     <p>Enter your trip earnings. We’ll handle the rest.</p>
     <label className="amount-input">
       <span>UGX</span>
-      <input ref={inputRef} autoFocus inputMode="numeric" aria-label="Amount earned in Uganda shillings" placeholder="0" value={raw ? Number(raw).toLocaleString('en-UG') : ''} onChange={(e) => setRaw(e.target.value.replace(/\D/g, '').slice(0, 12))} onKeyDown={(e) => e.key === 'Enter' && allocate()} />
+      <input ref={inputRef} autoFocus inputMode="numeric" aria-label="Amount earned in Uganda shillings" placeholder="0" value={raw ? Number(raw).toLocaleString('en-UG') : ''} onChange={(e) => setRaw(e.target.value.replace(/\D/g, '').slice(0, 12))} onKeyDown={(e) => { if (e.key === 'Enter') void allocate() }} />
     </label>
     <span className="field-label">Earnings source</span>
     <PlatformSelector value={platform} onChange={setPlatform} />
     {error && <p className="form-error" role="alert">{error}</p>}
     <AllocationRows amount={amount} rules={rules} platform={platform} />
-    <button className={`primary-action ${saved ? 'success' : ''}`} onClick={allocate} disabled={saved}>
-      {saved ? <><Check size={19} /> Transaction saved</> : <>Allocate & save <ArrowUpRight size={19} /></>}
+    <button className={`primary-action ${saved ? 'success' : ''}`} onClick={() => void allocate()} disabled={saved || saving}>
+      {saved ? <><Check size={19} /> Transaction saved</> : saving ? 'Saving…' : <>Allocate & save <ArrowUpRight size={19} /></>}
     </button>
   </section>
 }
@@ -165,7 +173,7 @@ function TotalStrip({ title, totals }: { title: string, totals: Totals }) {
   return <div className="total-strip"><div><span>{title}</span><strong>{formatUGX(totals.gross)}</strong></div><div><span>Fuel</span><strong>{formatUGX(totals.fuel)}</strong></div><div><span>Commission</span><strong>{formatUGX(totals.commission)}</strong></div><div><span>Maintenance</span><strong>{formatUGX(totals.maintenance)}</strong></div><div className="green"><span>Saved</span><strong>{formatUGX(totals.savings)}</strong></div></div>
 }
 
-function HomeView({ transactions, rules, lastPlatform, add, onEdit, onDelete, openAdd, goHistory }: { transactions: Transaction[], rules: AllocationRules, lastPlatform: Platform, add: (amount: number, platform: Platform) => void, onEdit: (item: Transaction) => void, onDelete: (item: Transaction) => void, openAdd: () => void, goHistory: () => void }) {
+function HomeView({ transactions, rules, lastPlatform, add, onEdit, onDelete, openAdd, goHistory }: { transactions: Transaction[], rules: AllocationRules, lastPlatform: Platform, add: (amount: number, platform: Platform) => Promise<void>, onEdit: (item: Transaction) => void, onDelete: (item: Transaction) => void, openAdd: () => void, goHistory: () => void }) {
   const todayItems = transactions.filter((item) => inPeriod(item, 'today'))
   const today = totalTransactions(todayItems)
   const week = totalTransactions(transactions.filter((item) => inPeriod(item, 'week')))
@@ -216,16 +224,29 @@ function AnalyticsView({ transactions }: { transactions: Transaction[] }) {
     <TotalStrip title={`${period.toUpperCase()} TOTAL`} totals={totals} /></>
 }
 
-function SettingsView({ rules, onSave }: { rules: AllocationRules, onSave: (rules: AllocationRules) => void }) {
-  const [draft, setDraft] = useState(rules)
-  const [message, setMessage] = useState('')
-  const total = draft.fuel + draft.commission + draft.maintenance + draft.savings
-  const change = (key: 'fuel' | 'commission' | 'maintenance' | 'savings', value: string) => setDraft({ ...draft, [key]: Math.max(0, Math.min(100, Number(value))) })
-  const save = () => { if (total !== 100) return setMessage('Allocation rules must total exactly 100%.'); onSave(draft); setMessage('Settings saved. New trips will use these rates.') }
-  return <><header className="page-heading"><div><span className="eyebrow">Preferences</span><h1>Allocation rules.</h1></div></header>
-    <div className="settings-layout"><section className="settings-section"><div className="settings-copy"><h2>Global allocation</h2><p>These rates apply to new trips. Existing transactions keep their original allocation.</p></div><div className="rule-fields">{(['fuel','commission','maintenance','savings'] as const).map((key) => <label key={key}><span>{key === 'maintenance' ? 'Maintenance reserve' : key[0].toUpperCase() + key.slice(1)}</span><div><input type="number" min="0" max="100" value={draft[key]} onChange={(e) => change(key, e.target.value)} /><b>%</b></div></label>)}<div className={`allocation-total ${total === 100 ? 'valid' : 'invalid'}`}><span>Total allocation</span><strong>{total}%</strong></div></div></section>
-      <section className="settings-section"><div className="settings-copy"><h2>Platform commission</h2><p>Set a custom commission. Savings automatically receives or covers the difference.</p></div><div className="rule-fields platform-rules">{platforms.map((platform) => <label key={platform}><span>{names[platform]}<small>{draft.platformCommissions[platform] == null ? 'Uses global' : 'Custom rate'}</small></span><div><input type="number" min="0" max="60" step="0.01" placeholder={String(draft.commission)} value={draft.platformCommissions[platform] ?? ''} onChange={(e) => { const copy = { ...draft.platformCommissions }; if (e.target.value === '') delete copy[platform]; else copy[platform] = Number(e.target.value); setDraft({ ...draft, platformCommissions: copy }) }} /><b>%</b></div></label>)}</div></section>
-      {message && <p className={total === 100 ? 'settings-message success-text' : 'settings-message form-error'}>{message}</p>}<button className="primary-action settings-save" onClick={save} disabled={total !== 100}>Save allocation rules</button></div></>
+function SettingsView({ profile, onAvatarChange }: { profile: ProfileRow | null, onAvatarChange: (file: File) => Promise<void> }) {
+  const { user, signOut } = useAuth()
+  const [signOutError, setSignOutError] = useState('')
+  const [signingOut, setSigningOut] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarMessage, setAvatarMessage] = useState('')
+  const metadataName = typeof user?.user_metadata.full_name === 'string' ? user.user_metadata.full_name.trim() : ''
+  const fullName = profile?.full_name?.trim() || metadataName || 'DrivePlan driver'
+  const email = profile?.email || user?.email
+  const avatarUrl = profileAvatarUrl(profile)
+  const joined = user?.created_at ? new Date(user.created_at).toLocaleDateString('en-UG', { month: 'long', year: 'numeric' }) : '—'
+  const logout = async () => { setSigningOut(true); setSignOutError(''); const error = await signOut(); if (error) { setSignOutError(error); setSigningOut(false) } }
+  const changeAvatar = async (file: File | undefined) => {
+    if (!file || uploadingAvatar) return
+    setUploadingAvatar(true); setAvatarMessage('')
+    try { await onAvatarChange(file); setAvatarMessage('Profile picture updated.') }
+    catch (error) { setAvatarMessage(error instanceof Error ? error.message : 'Profile picture could not be updated.') }
+    finally { setUploadingAvatar(false) }
+  }
+  return <><header className="page-heading"><div><span className="eyebrow">Account & preferences</span><h1>Your DrivePlan.</h1></div></header>
+    <div className="settings-layout"><section className="settings-section account-section"><div className="settings-copy"><h2>Profile</h2><p>Your Supabase account protects access to your DrivePlan data.</p></div><div className="account-profile"><label className={`profile-avatar-picker ${uploadingAvatar ? 'uploading' : ''}`}><span className="profile-avatar">{avatarUrl ? <img src={avatarUrl} alt={`${fullName} profile`} /> : <UserRound size={24} />}</span><span className="avatar-camera" aria-hidden="true"><Camera size={13} /></span><span className="sr-only">Change profile picture</span><input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingAvatar} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; void changeAvatar(file) }} /></label><div className="profile-identity"><strong>{fullName}</strong><span>{email}</span><small><BadgeCheck size={14} /> Verified account · Joined {joined}</small>{avatarMessage && <small className={avatarMessage.endsWith('updated.') ? 'avatar-success' : 'form-error'} role="status">{avatarMessage}</small>}</div><button className="secondary-action sign-out-action" onClick={logout} disabled={signingOut}><LogOut size={16} />{signingOut ? 'Signing out…' : 'Sign out'}</button>{signOutError && <p className="form-error account-error" role="alert">{signOutError}</p>}</div></section>
+      <section className="vip-upgrade" aria-label="DrivePlan VIP upgrade coming soon"><div className="vip-glow" aria-hidden="true" /><div className="vip-icon" aria-hidden="true"><Crown size={26} /></div><div className="vip-copy"><span>DrivePlan VIP</span><h2>More control for every kilometre.</h2><p>Advanced reports, smarter targets and premium account tools are on the way.</p></div><div className="vip-actions"><button type="button" disabled>Upgrade</button><span><i /> VIP coming soon</span></div></section>
+    </div></>
 }
 
 function Dialog({ open, title, onClose, children }: { open: boolean, title: string, onClose: () => void, children: React.ReactNode }) {
@@ -234,29 +255,47 @@ function Dialog({ open, title, onClose, children }: { open: boolean, title: stri
   return <dialog ref={ref} onCancel={onClose} onClick={(e) => e.target === ref.current && onClose()}><div className="dialog-head"><strong>{title}</strong><button aria-label="Close" onClick={onClose}><X size={19} /></button></div>{children}</dialog>
 }
 
-function EditForm({ item, onSave }: { item: Transaction, onSave: (amount: number, platform: Platform, date: string) => void }) {
+function EditForm({ item, onSave }: { item: Transaction, onSave: (amount: number, platform: Platform, date: string) => Promise<void> }) {
   const [amount, setAmount] = useState(String(item.grossAmount)); const [platform, setPlatform] = useState(item.platform)
+  const [saving, setSaving] = useState(false); const [error, setError] = useState('')
   const local = new Date(item.transactionDate); local.setMinutes(local.getMinutes() - local.getTimezoneOffset())
   const [date, setDate] = useState(local.toISOString().slice(0, 16))
-  return <div className="edit-form"><label>Gross earnings<input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label><label>Date and time<input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} /></label><span className="field-label">Platform</span><PlatformSelector value={platform} onChange={setPlatform} /><button className="primary-action" onClick={() => onSave(Number(amount), platform, new Date(date).toISOString())}>Save changes</button></div>
+  const save = async () => { if (saving) return; setSaving(true); setError(''); try { await onSave(Number(amount), platform, new Date(date).toISOString()) } catch (err) { setError(err instanceof Error ? err.message : 'The transaction was not updated.') } finally { setSaving(false) } }
+  return <div className="edit-form"><label>Gross earnings<input inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></label><label>Date and time<input type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} /></label><span className="field-label">Platform</span><PlatformSelector value={platform} onChange={setPlatform} />{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-action" onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button></div>
 }
 
-export default function App() {
-  const { transactions, rules, setRules, lastPlatform, add, update, remove } = useDrivePlan()
+function DeleteConfirmation({ item, onDelete, onDone }: { item: Transaction, onDelete: (id: string) => Promise<void>, onDone: () => void }) {
+  const [deleting, setDeleting] = useState(false); const [error, setError] = useState('')
+  const remove = async () => { if (deleting) return; setDeleting(true); setError(''); try { await onDelete(item.id); onDone() } catch (err) { setError(err instanceof Error ? err.message : 'The transaction was not deleted.'); setDeleting(false) } }
+  return <div className="confirm"><div className="danger-icon"><Trash2 size={22} /></div><p>{formatUGX(item.grossAmount)} from {names[item.platform]} will be removed. All totals will update automatically.</p>{error && <p className="form-error" role="alert">{error}</p>}<div><button className="secondary-action" onClick={onDone} disabled={deleting}>Cancel</button><button className="danger-action" onClick={() => void remove()} disabled={deleting}>{deleting ? 'Deleting…' : 'Delete'}</button></div></div>
+}
+
+function DrivePlanApp() {
+  const { profile, transactions, rules, lastPlatform, add, update, remove, updateAvatar, dataLoading, dataError, migrationNotice } = useDrivePlan()
   const pwa = usePwa()
   const [view, setView] = useState<View>('home'); const [addOpen, setAddOpen] = useState(false); const [editItem, setEditItem] = useState<Transaction | null>(null); const [deleteItem, setDeleteItem] = useState<Transaction | null>(null); const [menu, setMenu] = useState(false)
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('action') === 'add') setAddOpen(true)
   }, [])
+  if (dataLoading) return <AuthLoading />
+  if (dataError) return <div className="auth-shell"><div className="auth-card auth-state-card"><Brand /><h1>Account data unavailable</h1><p className="form-error" role="alert">{dataError}</p><button className="primary-action" onClick={() => window.location.reload()}>Try again</button></div></div>
   const navigate = (next: View) => { setView(next); setMenu(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   return <div className="app-shell">
-    <aside className={menu ? 'open' : ''}><Brand /><nav>{nav.map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={19} />{label}</button>)}<InstallAppButton pwa={pwa} /></nav><div className="sidebar-foot"><div className="status-dot" /><div><strong>Local & private</strong><span>Saved on this device</span></div></div></aside>
+    <aside className={menu ? 'open' : ''}><Brand /><nav>{nav.map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={19} />{label}</button>)}<InstallAppButton pwa={pwa} /></nav><div className="sidebar-foot"><div className="status-dot" /><div><strong>Private account</strong><span>Securely synced</span></div></div></aside>
     <div className="mobile-top"><Brand /><button aria-label="Open menu" onClick={() => setMenu(!menu)}><Menu size={22} /></button></div>{menu && <button className="scrim" aria-label="Close menu" onClick={() => setMenu(false)} />}
     <PwaStatus pwa={pwa} />
-    <main>{view === 'home' && <HomeView transactions={transactions} rules={rules} lastPlatform={lastPlatform} add={add} onEdit={setEditItem} onDelete={setDeleteItem} openAdd={() => setAddOpen(true)} goHistory={() => navigate('history')} />}{view === 'history' && <HistoryView transactions={transactions} onEdit={setEditItem} onDelete={setDeleteItem} />}{view === 'analytics' && <AnalyticsView transactions={transactions} />}{view === 'settings' && <SettingsView rules={rules} onSave={setRules} />}</main>
+    {migrationNotice && <div className="data-notice" role="status">{migrationNotice}</div>}
+    <main>{view === 'home' && <HomeView transactions={transactions} rules={rules} lastPlatform={lastPlatform} add={add} onEdit={setEditItem} onDelete={setDeleteItem} openAdd={() => setAddOpen(true)} goHistory={() => navigate('history')} />}{view === 'history' && <HistoryView transactions={transactions} onEdit={setEditItem} onDelete={setDeleteItem} />}{view === 'analytics' && <AnalyticsView transactions={transactions} />}{view === 'settings' && <SettingsView profile={profile} onAvatarChange={updateAvatar} />}</main>
     <nav className="bottom-nav">{nav.slice(0, 2).map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={20} /><span>{label === 'Transactions' ? 'History' : label}</span></button>)}<button className="fab" aria-label="Add earnings" onClick={() => setAddOpen(true)}><Plus size={25} /></button>{nav.slice(2).map(({ id, label, icon: Icon }) => <button className={view === id ? 'active' : ''} onClick={() => navigate(id)} key={id}><Icon size={20} /><span>{label}</span></button>)}</nav>
     <Dialog open={addOpen} title="Add earnings" onClose={() => setAddOpen(false)}><EntryPanel rules={rules} initialPlatform={lastPlatform} onSave={add} onDone={() => setAddOpen(false)} /></Dialog>
-    <Dialog open={!!editItem} title="Edit transaction" onClose={() => setEditItem(null)}>{editItem && <EditForm item={editItem} onSave={(amount, platform, date) => { update(editItem.id, amount, platform, date); setEditItem(null) }} />}</Dialog>
-    <Dialog open={!!deleteItem} title="Delete this transaction?" onClose={() => setDeleteItem(null)}>{deleteItem && <div className="confirm"><div className="danger-icon"><Trash2 size={22} /></div><p>{formatUGX(deleteItem.grossAmount)} from {names[deleteItem.platform]} will be removed. All totals will update automatically.</p><div><button className="secondary-action" onClick={() => setDeleteItem(null)}>Cancel</button><button className="danger-action" onClick={() => { remove(deleteItem.id); setDeleteItem(null) }}>Delete</button></div></div>}</Dialog>
+    <Dialog open={!!editItem} title="Edit transaction" onClose={() => setEditItem(null)}>{editItem && <EditForm item={editItem} onSave={async (amount, platform, date) => { await update(editItem.id, amount, platform, date); setEditItem(null) }} />}</Dialog>
+    <Dialog open={!!deleteItem} title="Delete this transaction?" onClose={() => setDeleteItem(null)}>{deleteItem && <DeleteConfirmation item={deleteItem} onDelete={remove} onDone={() => setDeleteItem(null)} />}</Dialog>
   </div>
+}
+
+export default function App() {
+  const { loading, session, passwordRecovery, initializationError } = useAuth()
+  if (loading) return <AuthLoading />
+  if (passwordRecovery || !session) return <AuthScreen initializationError={initializationError} />
+  return <DrivePlanApp />
 }

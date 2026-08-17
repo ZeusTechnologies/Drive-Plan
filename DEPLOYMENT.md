@@ -11,9 +11,17 @@ The repository includes `vercel.json`, so Vercel will use:
 
 ## Environment variables
 
-Copy only the values you need from `.env.example` into the Vercel project under **Settings → Environment Variables**. Do not add private values with a `VITE_` prefix; those are compiled into browser JavaScript.
+Copy the Supabase browser values from `.env.example` into the Vercel project under **Settings → Environment Variables**:
 
-The current local-first release requires no secrets. `DATABASE_URL` and `SYNC_ENCRYPTION_KEY` are reserved for a future authenticated cloud-sync API.
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Only use the Supabase publishable key. Do not add a secret or service-role key with a `VITE_` prefix because Vite compiles those values into browser JavaScript. `DATABASE_URL` and `SYNC_ENCRYPTION_KEY` remain reserved for a future authenticated cloud-sync API.
+
+Supabase Auth URL Configuration must allow both the production site and local development callbacks:
+
+- `https://driveplan.zeustechnologiesafrica.com`
+- `http://localhost:5173`
 
 ## Deploy
 

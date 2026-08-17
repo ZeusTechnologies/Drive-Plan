@@ -1,70 +1,139 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth } from '../auth/useAuth'
+import {
+  createTransaction,
+  deleteTransaction,
+  loadDrivePlanData,
+  saveAllocationRules,
+  updateTransaction,
+  updateUserSettings,
+  uploadProfileAvatar,
+} from '../data/drivePlanRepository'
+import { migrateLegacyData } from '../data/legacyMigration'
 import { calculateAllocation, DEFAULT_RULES } from '../lib/finance'
 import type { AllocationRules, Platform, Transaction } from '../types'
+import type { ProfileRow } from '../types/database'
 
-const TRANSACTIONS_KEY = 'driveplan.transactions.v1'
-const RULES_KEY = 'driveplan.rules.v2'
-const PLATFORM_KEY = 'driveplan.last-platform'
-
-function read<T>(key: string, fallback: T): T {
-  try {
-    const value = localStorage.getItem(key)
-    return value ? JSON.parse(value) as T : fallback
-  } catch { return fallback }
+interface AccountState {
+  userId: string
+  profile: ProfileRow | null
+  transactions: Transaction[]
+  rules: AllocationRules
+  lastPlatform: Platform
 }
 
 export function useDrivePlan() {
-  const [transactions, setTransactions] = useState<Transaction[]>(() => read(TRANSACTIONS_KEY, []))
-  const [rules, setRules] = useState<AllocationRules>(() => read(RULES_KEY, DEFAULT_RULES))
-  const [lastPlatform, setLastPlatform] = useState<Platform>(() => read(PLATFORM_KEY, 'uber'))
+  const { user } = useAuth()
+  const [account, setAccount] = useState<AccountState | null>(null)
+  const [loadError, setLoadError] = useState('')
+  const [migrationNotice, setMigrationNotice] = useState<string | null>(null)
+  const loadGeneration = useRef(0)
+  const activeUserId = user?.id ?? null
+  const currentAccount = account?.userId === activeUserId ? account : null
 
-  useEffect(() => localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(transactions)), [transactions])
-  useEffect(() => localStorage.setItem(RULES_KEY, JSON.stringify(rules)), [rules])
-  useEffect(() => localStorage.setItem(PLATFORM_KEY, JSON.stringify(lastPlatform)), [lastPlatform])
-
-  // localStorage is the offline source of truth. Storage events keep every
-  // open tab/window in sync without requiring a network connection.
   useEffect(() => {
-    const syncFromStorage = (event: StorageEvent) => {
-      if (event.storageArea !== localStorage || !event.newValue) return
-      try {
-        if (event.key === TRANSACTIONS_KEY) setTransactions(JSON.parse(event.newValue) as Transaction[])
-        if (event.key === RULES_KEY) setRules(JSON.parse(event.newValue) as AllocationRules)
-        if (event.key === PLATFORM_KEY) setLastPlatform(JSON.parse(event.newValue) as Platform)
-      } catch {
-        // Ignore malformed external writes and retain the last valid state.
-      }
+    const generation = ++loadGeneration.current
+    setLoadError('')
+    setMigrationNotice(null)
+    if (!activeUserId) {
+      setAccount(null)
+      return
     }
-    window.addEventListener('storage', syncFromStorage)
-    return () => window.removeEventListener('storage', syncFromStorage)
-  }, [])
+    void (async () => {
+      try {
+        const initialData = await loadDrivePlanData()
+        const migrated = await migrateLegacyData(activeUserId, initialData)
+        if (generation !== loadGeneration.current) return
+        setAccount({
+          userId: activeUserId,
+          profile: migrated.data.profile,
+          transactions: migrated.data.transactions,
+          rules: migrated.data.rules,
+          lastPlatform: migrated.data.selectedPlatform,
+        })
+        setMigrationNotice(migrated.notice)
+      } catch {
+        if (generation !== loadGeneration.current) return
+        setAccount(null)
+        setLoadError('DrivePlan could not load your account data. Check your connection and try again.')
+      }
+    })()
+    return () => { loadGeneration.current += 1 }
+  }, [activeUserId])
+
+  const requireAccount = useCallback(() => {
+    if (!currentAccount) throw new Error('Your DrivePlan account is still loading.')
+    return currentAccount
+  }, [currentAccount])
 
   const api = useMemo(() => ({
-    add(grossAmount: number, platform: Platform, transactionDate = new Date().toISOString()) {
+    async add(grossAmount: number, platform: Platform, transactionDate = new Date().toISOString()) {
+      const loaded = requireAccount()
       const now = new Date().toISOString()
-      const allocation = calculateAllocation(grossAmount, rules, platform)
-      setTransactions((items) => [{
+      const allocation = calculateAllocation(grossAmount, loaded.rules, platform)
+      const saved = await createTransaction({
         id: crypto.randomUUID(), platform, currency: 'UGX', transactionDate,
         createdAt: now, updatedAt: now, ...allocation,
-      }, ...items])
-      setLastPlatform(platform)
+      })
+      setAccount((state) => state?.userId === loaded.userId
+        ? { ...state, transactions: [saved, ...state.transactions], lastPlatform: platform }
+        : state)
+      void updateUserSettings(platform).catch(() => {
+        setMigrationNotice('The transaction was saved, but DrivePlan could not save the platform preference.')
+      })
     },
-    update(id: string, grossAmount: number, platform: Platform, transactionDate: string) {
-      setTransactions((items) => items.map((item) => {
-        if (item.id !== id) return item
-        const storedRules: AllocationRules = {
-          fuel: item.fuelPercentage,
-          commission: item.commissionPercentage,
-          maintenance: item.maintenancePercentage,
-          savings: item.savingsPercentage,
-          platformCommissions: { [platform]: item.commissionPercentage },
-        }
-        return { ...item, ...calculateAllocation(grossAmount, storedRules, platform), platform, transactionDate, updatedAt: new Date().toISOString() }
-      }))
-      setLastPlatform(platform)
+    async update(id: string, grossAmount: number, platform: Platform, transactionDate: string) {
+      const loaded = requireAccount()
+      const item = loaded.transactions.find((transaction) => transaction.id === id)
+      if (!item) throw new Error('This transaction is no longer available.')
+      const storedRules: AllocationRules = {
+        fuel: item.fuelPercentage,
+        commission: item.commissionPercentage,
+        maintenance: item.maintenancePercentage,
+        savings: item.savingsPercentage,
+        platformCommissions: { [platform]: item.commissionPercentage },
+      }
+      const saved = await updateTransaction({
+        ...item,
+        ...calculateAllocation(grossAmount, storedRules, platform),
+        platform,
+        transactionDate,
+        updatedAt: new Date().toISOString(),
+      })
+      setAccount((state) => state?.userId === loaded.userId
+        ? { ...state, transactions: state.transactions.map((transaction) => transaction.id === id ? saved : transaction), lastPlatform: platform }
+        : state)
+      void updateUserSettings(platform).catch(() => {
+        setMigrationNotice('The transaction was updated, but DrivePlan could not save the platform preference.')
+      })
     },
-    remove(id: string) { setTransactions((items) => items.filter((item) => item.id !== id)) },
-  }), [rules])
+    async remove(id: string) {
+      const loaded = requireAccount()
+      await deleteTransaction(id)
+      setAccount((state) => state?.userId === loaded.userId
+        ? { ...state, transactions: state.transactions.filter((transaction) => transaction.id !== id) }
+        : state)
+    },
+    async setRules(rules: AllocationRules) {
+      const loaded = requireAccount()
+      const saved = await saveAllocationRules(rules)
+      setAccount((state) => state?.userId === loaded.userId ? { ...state, rules: saved } : state)
+    },
+    async updateAvatar(file: File) {
+      const loaded = requireAccount()
+      const profile = await uploadProfileAvatar(file)
+      setAccount((state) => state?.userId === loaded.userId ? { ...state, profile } : state)
+    },
+  }), [requireAccount])
 
-  return { transactions, rules, setRules, lastPlatform, setLastPlatform, ...api }
+  return {
+    transactions: currentAccount?.transactions ?? [],
+    profile: currentAccount?.profile ?? null,
+    rules: currentAccount?.rules ?? DEFAULT_RULES,
+    lastPlatform: currentAccount?.lastPlatform ?? 'uber',
+    dataLoading: Boolean(activeUserId) && !currentAccount && !loadError,
+    dataError: loadError,
+    migrationNotice,
+    ...api,
+  }
 }
